@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8 Queens Puzzle - Rialo Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0c0c0c, #1a1a2e);
+            font-family: 'Arial', sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #gameContainer {
+            display: flex;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.5);
+            padding: 20px;
+            transition: transform 0.1s ease; /* Untuk shake animasi */
+        }
+        #boardCanvas {
+            border: 3px solid #00ffff;
+            /* Hilangkan border-radius dan shadow untuk kotak sempurna/sharp edges */
+            border-radius: 0;
+            box-shadow: none;
+            cursor: pointer;
+            /* Optimasi rendering untuk kotak sempurna tanpa blur/offset */
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+        #sidebar {
+            margin-left: 20px;
+            width: 280px; /* Lebih lebar untuk tombol */
+            background: linear-gradient(180deg, #16213e, #0f0f23);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
+            transition: transform 0.1s ease; /* Untuk shake animasi */
+        }
+        #logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid #00ffff;
+            margin-bottom: 20px;
+            animation: glow 2s infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 10px #00ffff; }
+            to { box-shadow: 0 0 20px #00ffff, 0 0 30px #00ffff; }
+        }
+        .stat {
+            font-size: 18px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .stat:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.02);
+        }
+        .mistake-stat {
+            background: rgba(255, 0, 0, 0.3); /* Warna merah untuk kesalahan */
+        }
+        #history {
+            height: 150px; /* Sedikit lebih kecil untuk muat kesalahan */
+            overflow-y: auto;
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+        .history-item {
+            margin: 5px 0;
+            padding: 5px;
+            background: rgba(0, 255, 0, 0.2);
+            border-radius: 5px;
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+        /* Animasi shake dramatis untuk kalah */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+        #resetBtn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+        #resetBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px #ff6b6b;
+        }
+        #undoBtn {
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            color: #333;
+        }
+        #undoBtn:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px #ffd700;
+        }
+        #undoBtn:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            color: #666;
+            cursor: not-allowed;
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+            animation: pulse 1s infinite;
+        }
+        .modal-content.lose {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.8);
+            animation: shakePulse 0.8s infinite; /* Lebih dramatis: shake + pulse */
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes shakePulse {
+            0% { transform: scale(1) rotate(0deg); }
+            10% { transform: scale(1.05) rotate(-1deg); }
+            20% { transform: scale(1.02) rotate(1deg); }
+            30% { transform: scale(1.05) rotate(-1deg); }
+            40% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(0deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        .modal-content h1 {
+            color: #ffd700;
+            text-shadow: 0 0 10px #ffd700;
+            font-size: 32px;
+        }
+        .modal-content.lose h1 {
+            color: #fff;
+            text-shadow: 0 0 10px #ff0000;
+        }
+        #restartBtn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 25px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+        #restartBtn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px #ff6b6b;
+        }
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="boardCanvas" width="640" height="640"></canvas>
+        <div id="sidebar">
+            <img id="logo" src="https://pbs.twimg.com/profile_images/1950265537784926208/qbjSWMDP.jpg" alt="RialoHQ Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9IiMwMGZmZmYiLz4KPHRleHQgeD0iNDAiIHk9IjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjIwIiBmaWxsPSJ3aGl0ZSI+Uk88L3RleHQ+Cjwvc3ZnPgo=';">
+            <div class="stat" id="timer">Timer: 0s</div>
+            <div class="stat" id="score">Score: 0</div>
+            <div class="stat mistake-stat" id="mistakes">Kesalahan: 0/3</div>
+            <button id="resetBtn" class="btn">Reset Game</button>
+            <button id="undoBtn" class="btn" disabled>Undo</button>
+            <div id="history">
+                <div>Histori Permainan:</div>
+            </div>
+        </div>
+    </div>
+    <div id="modal">
+        <div class="modal-content">
+            <h1 id="modalTitle">Selamat! Anda berhasil!</h1>
+            <p id="finalScore"></p>
+            <button id="restartBtn">Restart Game</button>
+        </div>
+    </div>
+    <canvas id="confettiCanvas" width="100%" height="100%"></canvas>
+
+    <script>
+        const BOARD_SIZE = 8;
+        const SQUARE_SIZE = 80; // Diperbesar dari 60 ke 80 untuk ukuran wahana lebih besar
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const timerEl = document.getElementById('timer');
+        const scoreEl = document.getElementById('score');
+        const mistakesEl = document.getElementById('mistakes');
+        const historyEl = document.getElementById('history');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modalTitle');
+        const finalScoreEl = document.getElementById('finalScore');
+        const restartBtn = document.getElementById('restartBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const gameContainer = document.getElementById('gameContainer');
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+
+        let board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+        let queens = [];
+        let gameStartTime = null;
+        let conflictSquares = new Set();
+        let conflictTimer = 0;
+        let history = [];
+        let mistakes = 0; // Hitung kesalahan
+        const MAX_MISTAKES = 3;
+        let score = 0;
+        let won = false;
+        let lost = false;
+        let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let queenImage = null; // Logo sebagai queen
+        let hoverRow = -1;
+        let hoverCol = -1;
+        let lastHoverTime = 0; // Untuk throttle
+
+        // Load logo sebagai queen image
+        function loadQueenImage() {
+            queenImage = new Image();
+            queenImage.src = 'https://pbs.twimg.com/profile_images/1950265537784926208/qbjSWMDP.jpg';
+            queenImage.crossOrigin = 'anonymous'; // Untuk CORS
+            queenImage.onload = () => {
+                console.log('Logo queen loaded!');
+                drawBoard(); // Redraw setelah load
+            };
+            queenImage.onerror = () => {
+                console.log('Gagal load logo, pakai fallback');
+                queenImage = null;
+            };
+        }
+
+        // Draw board (dengan sub-pixel alignment untuk kotak sempurna)
+        function drawBoard() {
+            // Sub-pixel translate untuk alignment sempurna (fix offset rendering)
+            ctx.save();
+            ctx.translate(0.5, 0.5);
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(-0.5, -0.5, canvas.width, canvas.height);
+            for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                    const x = col * SQUARE_SIZE;
+                    const y = row * SQUARE_SIZE;
+                    let color = (row + col) % 2 === 0 ? '#00bfff' : '#32cd32';
+                    if (conflictSquares.has(`${row},${col}`)) {
+                        color = '#ff0000';
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
+                    ctx.strokeStyle = '#00ffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
+
+                    // Draw queen (logo) dengan fade jika kalah
+                    if (board[row][col]) {
+                        if (lost) {
+                            ctx.globalAlpha = 0.3; // Fade queens saat kalah
+                        }
+                        drawQueen(x + SQUARE_SIZE / 2, y + SQUARE_SIZE / 2);
+                        ctx.globalAlpha = 1;
+                    }
+                }
+            }
+            // Draw hover overlay if applicable
+            if (hoverRow >= 0 && hoverCol >= 0 && !board[hoverRow][hoverCol] && !won && !lost) {
+                const x = hoverCol * SQUARE_SIZE;
+                const y = hoverRow * SQUARE_SIZE;
+                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = '#00ffff';
+                ctx.fillRect(x, y, SQUARE_SIZE, SQUARE_SIZE);
+                ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+        }
+
+        function drawQueen(centerX, centerY) {
+            if (queenImage) {
+                // Draw logo dengan glow, scale proporsional dengan ukuran baru
+                ctx.save();
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 20; // Sedikit lebih besar untuk ukuran board baru
+                ctx.globalAlpha = 0.9;
+                const imgSize = 50; // Diperbesar dari 40 ke 50
+                ctx.drawImage(queenImage, centerX - imgSize / 2, centerY - imgSize / 2, imgSize, imgSize);
+                ctx.restore();
+            } else {
+                // Fallback: Gambar sederhana seperti sebelumnya, scale up
+                ctx.save();
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY - 30); // Scale up
+                ctx.lineTo(centerX - 20, centerY - 15);
+                ctx.lineTo(centerX - 8, centerY - 30);
+                ctx.lineTo(centerX + 8, centerY - 30);
+                ctx.lineTo(centerX + 20, centerY - 15);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY + 15, 20, 0, Math.PI * 2); // Scale up
+                ctx.fill();
+            }
+        }
+
+        // Check safe placement
+        function isSafe(row, col) {
+            for (let queen of queens) {
+                if (queen.row === row || queen.col === col || Math.abs(queen.row - row) === Math.abs(queen.col - col)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function getConflicts(row, col) {
+            let conflicts = new Set();
+            for (let queen of queens) {
+                if (queen.row === row || queen.col === col || Math.abs(queen.row - row) === Math.abs(queen.col - col)) {
+                    conflicts.add(`${queen.row},${queen.col}`);
+                    conflicts.add(`${row},${col}`);
+                }
+            }
+            return conflicts;
+        }
+
+        // Place queen
+        function placeQueen(row, col) {
+            if (lost) return; // Kalau sudah kalah, ignore click
+
+            // Remove existing in row (tetap dukung ganti di baris sama)
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[row][c]) {
+                    const oldQueen = queens.find(q => q.row === row && q.col === c);
+                    if (oldQueen) {
+                        queens = queens.filter(q => q !== oldQueen);
+                        board[row][c] = null;
+                        // Update history: ganti entry terakhir jika sama row
+                        if (history.length > 0 && history[history.length - 1].includes(`baris ${row}`)) {
+                            history.pop();
+                        }
+                    }
+                }
+            }
+
+            if (isSafe(row, col)) {
+                board[row][col] = true;
+                const newQueen = { row, col };
+                queens.push(newQueen);
+                history.push(`Queen di (baris ${row}, kolom ${col})`);
+                if (!gameStartTime) gameStartTime = Date.now();
+                playSound(800, 0.1); // Success sound
+            } else {
+                mistakes++;
+                conflictSquares = getConflicts(row, col);
+                conflictTimer = Date.now() + 2000;
+                playSound(200, 0.3); // Lower tone dramatis untuk error
+                if (mistakes >= MAX_MISTAKES) {
+                    lost = true;
+                    score = 0; // Set skor 0 saat kalah
+                    // Trigger shake animasi
+                    gameContainer.classList.add('shake');
+                    setTimeout(() => gameContainer.classList.remove('shake'), 500);
+                    showLose();
+                }
+                return; // Jangan tambah history jika salah
+            }
+
+            updateUI();
+            drawBoard();
+            if (queens.length === 8) {
+                won = true;
+                const elapsed = Math.floor((Date.now() - gameStartTime) / 1000);
+                score = Math.max(100, 2000 - elapsed * 5); // Rumus skor baru: lebih generous, min 100
+                showWin();
+            }
+        }
+
+        // Show lose modal
+        function showLose() {
+            modalTitle.textContent = "Maaf! Anda gagal setelah 3 kesalahan.";
+            finalScoreEl.textContent = `Skor akhir: ${score}`;
+            modal.classList.add('lose');
+            modal.style.display = 'flex';
+            // No confetti for lose
+        }
+
+        // Undo function
+        function undo() {
+            if (queens.length === 0 || won || lost) return;
+            
+            const lastQueen = queens.pop();
+            board[lastQueen.row][lastQueen.col] = null;
+            history.pop();
+            
+            // Animasi fade-out untuk history item terakhir
+            const lastItem = historyEl.querySelector('.history-item:last-child');
+            if (lastItem) {
+                lastItem.style.animation = 'fadeOut 0.5s ease-out';
+                setTimeout(() => lastItem.remove(), 500);
+            }
+            
+            playSound(600, 0.1); // Undo sound
+            updateUI();
+            drawBoard();
+            conflictSquares.clear(); // Clear konflik jika ada
+        }
+
+        function playSound(freq, duration) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = freq;
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function updateUI() {
+            const elapsed = gameStartTime ? Math.floor((Date.now() - gameStartTime) / 1000) : 0;
+            score = Math.max(100, 2000 - elapsed * 5); // Rumus skor baru di update UI juga
+            timerEl.textContent = `Timer: ${elapsed}s`;
+            scoreEl.textContent = `Score: ${score}`;
+            mistakesEl.textContent = `Kesalahan: ${mistakes}/${MAX_MISTAKES}`;
+
+            // Update history
+            const existingItems = historyEl.querySelectorAll('.history-item');
+            existingItems.forEach(item => {
+                if (!history.includes(item.textContent)) {
+                    item.style.animation = 'fadeOut 0.5s ease-out';
+                    setTimeout(() => item.remove(), 500);
+                }
+            });
+
+            history.slice(-5).forEach((item, i) => {
+                let div = document.querySelector(`.history-item[data-text="${item}"]`);
+                if (!div) {
+                    div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.dataset.text = item;
+                    div.style.animationDelay = `${i * 0.1}s`;
+                    div.textContent = item;
+                    historyEl.appendChild(div);
+                }
+            });
+
+            // Update undo button
+            undoBtn.disabled = queens.length === 0 || won || lost;
+        }
+
+        function showWin() {
+            modalTitle.textContent = "Selamat! Anda berhasil!";
+            finalScoreEl.textContent = `Score akhir: ${score}`;
+            modal.classList.remove('lose');
+            modal.style.display = 'flex';
+            launchConfetti();
+        }
+
+        // Confetti effect
+        function launchConfetti() {
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+            const particles = [];
+            for (let i = 0; i < 100; i++) {
+                particles.push({
+                    x: Math.random() * confettiCanvas.width,
+                    y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: Math.random() * 5 + 5,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    size: Math.random() * 5 + 5
+                });
+            }
+            function animateConfetti() {
+                confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+                particles.forEach(p => {
+                    confettiCtx.fillStyle = p.color;
+                    confettiCtx.fillRect(p.x, p.y, p.size, p.size);
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.1; // Gravity
+                });
+                if (particles.some(p => p.y < confettiCanvas.height)) {
+                    requestAnimationFrame(animateConfetti);
+                }
+            }
+            animateConfetti();
+        }
+
+        function resetGame() {
+            board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+            queens = [];
+            gameStartTime = null;
+            conflictSquares = new Set();
+            conflictTimer = 0;
+            history = [];
+            mistakes = 0;
+            score = 0;
+            won = false;
+            lost = false;
+            modal.style.display = 'none';
+            modal.classList.remove('lose');
+            gameContainer.classList.remove('shake'); // Clear shake class
+            
+            // Animasi fade-out semua history
+            const items = historyEl.querySelectorAll('.history-item');
+            items.forEach(item => {
+                item.style.animation = 'fadeOut 0.5s ease-out';
+            });
+            setTimeout(() => {
+                items.forEach(item => item.remove());
+                historyEl.innerHTML = '<div>Histori Permainan:</div>';
+            }, 500);
+            
+            drawBoard();
+            updateUI();
+        }
+
+        // Helper function untuk calculate row/col dengan adjustment lebih besar untuk baris bawah
+        function getRowCol(x, y) {
+            // Adjustment lebih untuk baris bawah (offset ~1-2px di beberapa browser)
+            const adjustedY = y + (y > 320 ? 1.5 : 0.5); // Update threshold ke 320 (karena SQUARE_SIZE=80, baris 5 y>320)
+            const col = Math.floor(x / SQUARE_SIZE);
+            const row = Math.floor(adjustedY / SQUARE_SIZE);
+            return { row, col };
+        }
+
+        // Event listeners
+        canvas.addEventListener('click', (e) => {
+            if (won || lost) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const { row, col } = getRowCol(x, y);
+            console.log(`Click detected: row ${row}, col ${col}, y=${y.toFixed(2)}, adjustedY=${(y + (y > 320 ? 1.5 : 0.5)).toFixed(2)}`); // Update threshold
+            if (row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE) {
+                placeQueen(row, col);
+            }
+        });
+
+        resetBtn.addEventListener('click', resetGame);
+        undoBtn.addEventListener('click', undo);
+        restartBtn.addEventListener('click', resetGame);
+
+        // Clear conflicts
+        setInterval(() => {
+            if (conflictTimer && Date.now() > conflictTimer) {
+                conflictSquares.clear();
+                drawBoard();
+            }
+        }, 100);
+
+        // Hover effect (optimized with throttle dan adjustment)
+        canvas.addEventListener('mousemove', (e) => {
+            const now = Date.now();
+            if (now - lastHoverTime < 16) return; // Throttle ~60fps
+            lastHoverTime = now;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const { row: newRow, col: newCol } = getRowCol(x, y);
+            
+            // Debug log untuk hover di baris 4-7 (hilangkan nanti kalau fix)
+            if (newRow >= 4 && newRow <= 7) {
+                console.log(`Hover detected: row ${newRow}, col ${newCol}, y=${y.toFixed(2)}, adjustedY=${(y + (y > 320 ? 1.5 : 0.5)).toFixed(2)}, expected y range: ${newRow*80}-${(newRow+1)*80}`); // Update range ke 80
+            }
+            
+            // Only redraw if hover position changed
+            if (newRow !== hoverRow || newCol !== hoverCol) {
+                hoverRow = newRow;
+                hoverCol = newCol;
+                drawBoard();
+                
+                if (newRow >= 0 && newRow < BOARD_SIZE && newCol >= 0 && newCol < BOARD_SIZE && !board[newRow][newCol] && !won && !lost) {
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    canvas.style.cursor = 'default';
+                }
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (hoverRow >= 0 || hoverCol >= 0) {
+                hoverRow = -1;
+                hoverCol = -1;
+                drawBoard();
+                canvas.style.cursor = 'default';
+            }
+        });
+
+        // Init
+        loadQueenImage();
+        drawBoard();
+        updateUI();
+    </script>
+</body>
+</html>
